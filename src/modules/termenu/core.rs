@@ -1,8 +1,10 @@
 use crate::modules::termenu::Banner;
 use colored::Colorize;
+use serde::Deserialize;
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
 use std::env;
+use std::fs;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -12,6 +14,19 @@ use super::exceptions::TermenuError;
 /// Constants
 pub const MAX_COMMAND: i32 = 100;
 pub const MIN_COMMAND: i32 = 0;
+
+#[derive(Debug, Deserialize)]
+struct CargoToml {
+    package: Package,
+    dependencies: Option<toml::value::Table>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Package {
+    name: String,
+    version: String,
+    authors: Vec<String>,
+}
 
 #[derive(Clone)]
 pub struct Termenu {
@@ -172,12 +187,37 @@ impl Termenu {
     }
 
     /// Built-in help system: display all registered commands
-    fn show_help(commands: &[Termenu], specific: Option<&str>, verbose: bool) {
+    fn show_help(
+        commands: &[Termenu],
+        specific: Option<&str>,
+        verbose: bool,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let content = fs::read_to_string("Cargo.toml")?;
+        let cargo_toml: CargoToml = toml::from_str(&content)?;
+
         Banner::render("Termenu");
-        println!("{}", "Developed by Harold Eustaquio".green());
-        println!("{}", "Usage:\n  cli_tool [Command] <options>".bold());
-        println!("  Note: Check `cli_tool help --command=<command_name>` to view guide.");
+        println!(
+            "{} {}",
+            "Developer:".green(),
+            cargo_toml.package.authors[0].green().bold()
+        );
+        println!(
+            "{} {}",
+            "Version:".green(),
+            cargo_toml.package.version.green().bold()
+        );
+        println!(
+            "{}\n  {} {}",
+            "Usage:".bold(),
+            cargo_toml.package.name.green().bold(),
+            "[Command] <options>".bold()
+        );
+        println!(
+            "  Note: Check `{} help --command=<command_name>` to view guide.",
+            cargo_toml.package.name.bold()
+        );
         println!("{}", "Available Commands:".yellow().bold());
+
         for cmd in commands {
             if let Some(spec) = specific {
                 if cmd.command != spec {
@@ -192,6 +232,8 @@ impl Termenu {
                 println!();
             }
         }
+
+        Ok(())
     }
 
     /// Process CLI input and execute matching command

@@ -227,7 +227,6 @@ impl Termenu {
                 return Err(ServError::invalid_input(Some(json!({ "issue": err }))));
             }
         } else {
-            Termenu::show_help(&commands, None, false);
             return Err(ServError::invalid_input(Some(json!({
                 "issue": format!(
                     "invalid command '{}'. Run with 'help' to view available commands.",

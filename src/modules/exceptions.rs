@@ -14,10 +14,11 @@ pub enum ServError {
     Io(std::io::Error),
 }
 
+#[allow(dead_code)]
 impl ServError {
     pub fn missing_input(data: Option<Value>) -> Self {
         ServError::Exception {
-            code: "E200".into(),
+            code: "E972".into(),
             name: "MissingInput".into(),
             data,
         }
@@ -25,7 +26,7 @@ impl ServError {
 
     pub fn invalid_input(data: Option<Value>) -> Self {
         ServError::Exception {
-            code: "E100".into(),
+            code: "E111".into(),
             name: "InvalidInput".into(),
             data,
         }
@@ -36,17 +37,16 @@ impl fmt::Display for ServError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ServError::Exception { code, name, data } => {
-                let code_colored = code.red().bold();
-                let name_colored = name.yellow().bold();
+                let code_colored: ColoredString = code.red().bold();
+                let name_colored: ColoredString = name.yellow().bold();
 
                 if let Some(d) = data {
-                    write!(
-                        f,
-                        "[{}] {}: {}",
-                        code_colored,
-                        name_colored,
-                        format!("{:?}", d).cyan()
-                    )
+                    let issue = d
+                        .get("issue")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("<no issue field>");
+
+                    write!(f, "[{}] {}: {}", code_colored, name_colored, issue.cyan())
                 } else {
                     write!(f, "[{}] {}", code_colored, name_colored)
                 }

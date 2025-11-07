@@ -19,14 +19,15 @@ pub struct Termenu {
     pub description: String,
     pub options: Vec<(String, String)>,
     #[allow(clippy::type_complexity)]
-    pub handler:
-        Option<Arc<dyn Fn(&HashMap<String, Option<String>>) -> Result<(), String> + Send + Sync>>,
+    pub handler: Option<
+        Arc<dyn Fn(&HashMap<String, Option<String>>) -> Result<(), ServError> + Send + Sync>,
+    >,
     #[allow(clippy::type_complexity)]
     pub async_handler: Option<
         Arc<
             dyn Fn(
                     HashMap<String, Option<String>>,
-                ) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send>>
+                ) -> Pin<Box<dyn Future<Output = Result<(), ServError>> + Send>>
                 + Send
                 + Sync,
         >,
@@ -37,7 +38,7 @@ impl Termenu {
     /// Create a new synchronous command with a handler
     pub fn new_command<F>(command: &str, description: &str, handler: F) -> Self
     where
-        F: Fn(&HashMap<String, Option<String>>) -> Result<(), String> + Send + Sync + 'static,
+        F: Fn(&HashMap<String, Option<String>>) -> Result<(), ServError> + Send + Sync + 'static,
     {
         Self {
             command: command.to_string(),
@@ -52,7 +53,7 @@ impl Termenu {
     pub fn new_async_command<F, Fut>(command: &str, description: &str, handler: F) -> Self
     where
         F: Fn(HashMap<String, Option<String>>) -> Fut + Send + Sync + 'static,
-        Fut: Future<Output = Result<(), String>> + Send + 'static,
+        Fut: Future<Output = Result<(), ServError>> + Send + 'static,
     {
         Self {
             command: command.to_string(),
@@ -73,7 +74,7 @@ impl Termenu {
     pub fn parse_options(
         &self,
         raw_args: &[String],
-    ) -> Result<HashMap<String, Option<String>>, String> {
+    ) -> Result<HashMap<String, Option<String>>, ServError> {
         let mut parsed: HashMap<String, Option<String>> = HashMap::new();
 
         for arg in raw_args {
@@ -81,12 +82,16 @@ impl Termenu {
                 if self.options.iter().any(|(opt, _)| opt == key) {
                     parsed.insert(key.to_string(), Some(value.to_string()));
                 } else {
-                    return Err(format!("Unknown option: '{}'", key));
+                    return Err(ServError::invalid_command_error(Some(json!({
+                        "issue": format!("Unknown option: '{}'", key)
+                    }))));
                 }
             } else if self.options.iter().any(|(opt, _)| opt == arg) {
                 parsed.insert(arg.clone(), None);
             } else {
-                return Err(format!("Unknown option: '{}'", arg));
+                return Err(ServError::invalid_command_error(Some(json!({
+                    "issue": format!("Unknown option: '{}'", arg)
+                }))));
             }
         }
 
@@ -94,13 +99,15 @@ impl Termenu {
     }
 
     /// Execute either sync or async handler automatically
-    pub async fn execute(&self, options: HashMap<String, Option<String>>) -> Result<(), String> {
+    pub async fn execute(&self, options: HashMap<String, Option<String>>) -> Result<(), ServError> {
         if let Some(handler) = &self.handler {
             handler(&options)
         } else if let Some(async_handler) = &self.async_handler {
             async_handler(options).await
         } else {
-            Err("No handler found for this command.".into())
+            Err(ServError::invalid_command_error(Some(json!({
+                "issue": "No handler found for this command."
+            }))))
         }
     }
 
@@ -213,21 +220,20 @@ impl Termenu {
 
         if args.len() < 2 {
             Self::show_help(&commands, None, false);
+            return Ok(());
         }
 
         let command_name = args[1].clone();
 
         if let Some(termenu) = commands.iter().find(|t| t.command == command_name) {
             let raw_options: &[String] = &args[2..];
-            let parsed_options = termenu
-                .parse_options(raw_options)
-                .map_err(|err| ServError::invalid_input(Some(json!({ "issue": err }))))?;
+            let parsed_options = termenu.parse_options(raw_options)?;
 
             if let Err(err) = termenu.execute(parsed_options).await {
-                return Err(ServError::invalid_input(Some(json!({ "issue": err }))));
+                return Err(err); // ✅ keep original error (no double wrap)
             }
         } else {
-            return Err(ServError::invalid_input(Some(json!({
+            return Err(ServError::invalid_command_error(Some(json!({
                 "issue": format!(
                     "invalid command '{}'. Run with 'help' to view available commands.",
                     command_name

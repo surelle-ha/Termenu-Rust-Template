@@ -1,3 +1,4 @@
+use crate::modules::exceptions::ServError;
 /**
  * =========================================
  * Note: This is an internal command intended
@@ -8,6 +9,8 @@
  */
 use crate::modules::termenu::Termenu;
 use colored::Colorize;
+use serde_json::json;
+use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
@@ -15,7 +18,7 @@ pub fn register() -> Termenu {
     let mut command: Termenu = Termenu::new_command(
         "developer",
         "Add new command for development purposes. Will only work in debug mode.",
-        |options: &std::collections::HashMap<String, Option<String>>| {
+        |options: &HashMap<String, Option<String>>| {
             if cfg!(debug_assertions) {
                 let verbose_mode: bool = options.contains_key("--verbose");
 
@@ -27,9 +30,9 @@ pub fn register() -> Termenu {
                 let command_name = match command_name {
                     Some(name) if !name.is_empty() => name,
                     _ => {
-                        return Err(String::from(
-                            "Action is required. Use `--add=<command_name>` to continue.",
-                        ));
+                        return Err(ServError::input_missing_error(Some(json!({
+                            "issue": "Action is required. Use `--add=<command_name>` to continue."
+                        }))));
                     }
                 };
 
@@ -43,19 +46,21 @@ pub fn register() -> Termenu {
                 let path: &Path = Path::new(&file_name);
 
                 if path.exists() {
-                    return Err(format!(
-                        "{} Command file already exists: {}",
-                        "✖".red(),
-                        file_name
-                    ));
+                    return Err(ServError::input_unknown_error(Some(json!({
+                        "issue": format!("Command file already exists: {}", file_name)
+                    }))));
                 }
 
-                fs::write(&path, generate_command_template(&command_name))
-                    .map_err(|e| format!("{} Failed to create file: {}", "✖".red(), e))?;
+                fs::write(&path, generate_command_template(&command_name)).map_err(|e| {
+                    ServError::connection_unknown_error(Some(json!({
+                        "issue": format!("Failed to create file: {}", e)
+                    })))
+                })?;
 
                 if verbose_mode {
                     println!(
-                        "{} Command file created successfully at: {}. Register the new command manually on the entrypoint.",
+                        "{} Command file created successfully at: {}. \
+                         Register the new command manually on the entrypoint.",
                         "✔".green(),
                         file_name
                     );
@@ -63,9 +68,9 @@ pub fn register() -> Termenu {
 
                 Ok(())
             } else {
-                Err(String::from(
-                    "This command is only available in debug mode.",
-                ))
+                Err(ServError::invalid_command_error(Some(json!({
+                    "issue": "This command is only available in debug mode."
+                }))))
             }
         },
     );

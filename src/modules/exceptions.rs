@@ -16,18 +16,57 @@ pub enum ServError {
 
 #[allow(dead_code)]
 impl ServError {
-    pub fn missing_input(data: Option<Value>) -> Self {
+    /// Input Errors (<111)
+    pub fn input_unknown_error(data: Option<Value>) -> Self {
         ServError::Exception {
-            code: "E972".into(),
-            name: "MissingInput".into(),
+            code: "E111".into(),
+            name: "InputError".into(),
+            data,
+        }
+    }
+    pub fn input_missing_error(data: Option<Value>) -> Self {
+        ServError::Exception {
+            code: "E112".into(),
+            name: "InputMissingError".into(),
             data,
         }
     }
 
-    pub fn invalid_input(data: Option<Value>) -> Self {
+    /// Connection Errors (<611)
+    pub fn connection_unknown_error(data: Option<Value>) -> Self {
         ServError::Exception {
-            code: "E111".into(),
-            name: "InvalidInput".into(),
+            code: "611".into(),
+            name: "ConnectionError".into(),
+            data,
+        }
+    }
+    pub fn connection_timeout_error(data: Option<Value>) -> Self {
+        ServError::Exception {
+            code: "612".into(),
+            name: "ConnectionTimeoutError".into(),
+            data,
+        }
+    }
+
+    /// Command Errors (<711)
+    pub fn command_unknown_error(data: Option<Value>) -> Self {
+        ServError::Exception {
+            code: "711".into(),
+            name: "CommandError".into(),
+            data,
+        }
+    }
+    pub fn invalid_command_error(data: Option<Value>) -> Self {
+        ServError::Exception {
+            code: "E712".into(),
+            name: "InvalidCommandError".into(),
+            data,
+        }
+    }
+    pub fn command_timeout_error(data: Option<Value>) -> Self {
+        ServError::Exception {
+            code: "713".into(),
+            name: "CommandTimeoutError".into(),
             data,
         }
     }

@@ -1,13 +1,4 @@
-use crate::modules::exceptions::ServError;
-/**
- * =========================================
- * Note: This is an internal command intended
- * for development use only. You may remove it
- * depending on your specific use case or how
- * you plan to use this tool.
- * =========================================
- */
-use crate::modules::termenu::Termenu;
+use crate::modules::termenu::{Termenu, TermenuError};
 use colored::Colorize;
 use reqwest;
 use serde_json::{Value, json};
@@ -15,6 +6,14 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 
+///
+/// =========================================
+/// Note: This is an internal command intended
+/// for development use only. You may remove it
+/// depending on your specific use case or how
+/// you plan to use this tool.
+/// =========================================
+///
 pub fn register() -> Termenu {
     let mut inspire_cmd = Termenu::new_async_command(
         "inspire",
@@ -26,7 +25,7 @@ pub fn register() -> Termenu {
                     .danger_accept_invalid_certs(true)
                     .build()
                     .map_err(|e| {
-                        ServError::connection_unknown_error(Some(json!({
+                        TermenuError::connection_unknown_error(Some(json!({
                             "issue": format!("Client build failed: {}", e)
                         })))
                     })?;
@@ -37,21 +36,21 @@ pub fn register() -> Termenu {
                     .send()
                     .await
                     .map_err(|e| {
-                        ServError::connection_unknown_error(Some(json!({
+                        TermenuError::connection_unknown_error(Some(json!({
                             "issue": format!("Request failed: {}", e)
                         })))
                     })?;
 
                 // Convert response to text
                 let text = resp.text().await.map_err(|e| {
-                    ServError::connection_unknown_error(Some(json!({
+                    TermenuError::connection_unknown_error(Some(json!({
                         "issue": format!("Failed to read response: {}", e)
                     })))
                 })?;
 
                 // Parse JSON
                 let resp_json: Value = serde_json::from_str(&text).map_err(|e| {
-                    ServError::input_unknown_error(Some(json!({
+                    TermenuError::input_unknown_error(Some(json!({
                         "issue": format!("Invalid JSON: {}", e)
                     })))
                 })?;
@@ -63,7 +62,7 @@ pub fn register() -> Termenu {
                 println!("   — {}", author);
 
                 Ok(())
-            }) as Pin<Box<dyn Future<Output = Result<(), ServError>> + Send>>
+            }) as Pin<Box<dyn Future<Output = Result<(), TermenuError>> + Send>>
         },
     );
 

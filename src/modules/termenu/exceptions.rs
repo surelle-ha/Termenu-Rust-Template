@@ -5,7 +5,7 @@ use std::fmt;
 
 #[allow(dead_code)]
 #[derive(Debug)]
-pub enum ServError {
+pub enum TermenuError {
     Exception {
         code: String,
         name: String,
@@ -15,17 +15,40 @@ pub enum ServError {
 }
 
 #[allow(dead_code)]
-impl ServError {
+impl TermenuError {
+    // Framework Errors (<011)
+    pub fn framework_unknown_error(data: Option<Value>) -> Self {
+        TermenuError::Exception {
+            code: "E011".into(),
+            name: "FrameworkError".into(),
+            data,
+        }
+    }
+    pub fn framework_forbidden_error(data: Option<Value>) -> Self {
+        TermenuError::Exception {
+            code: "E011".into(),
+            name: "FrameworkForbiddenError".into(),
+            data,
+        }
+    }
+    pub fn framework_resource_error(data: Option<Value>) -> Self {
+        TermenuError::Exception {
+            code: "E011".into(),
+            name: "FrameworkForbiddenError".into(),
+            data,
+        }
+    }
+
     /// Input Errors (<111)
     pub fn input_unknown_error(data: Option<Value>) -> Self {
-        ServError::Exception {
+        TermenuError::Exception {
             code: "E111".into(),
             name: "InputError".into(),
             data,
         }
     }
     pub fn input_missing_error(data: Option<Value>) -> Self {
-        ServError::Exception {
+        TermenuError::Exception {
             code: "E112".into(),
             name: "InputMissingError".into(),
             data,
@@ -34,15 +57,15 @@ impl ServError {
 
     /// Connection Errors (<611)
     pub fn connection_unknown_error(data: Option<Value>) -> Self {
-        ServError::Exception {
-            code: "611".into(),
+        TermenuError::Exception {
+            code: "E611".into(),
             name: "ConnectionError".into(),
             data,
         }
     }
     pub fn connection_timeout_error(data: Option<Value>) -> Self {
-        ServError::Exception {
-            code: "612".into(),
+        TermenuError::Exception {
+            code: "E612".into(),
             name: "ConnectionTimeoutError".into(),
             data,
         }
@@ -50,32 +73,32 @@ impl ServError {
 
     /// Command Errors (<711)
     pub fn command_unknown_error(data: Option<Value>) -> Self {
-        ServError::Exception {
-            code: "711".into(),
+        TermenuError::Exception {
+            code: "E711".into(),
             name: "CommandError".into(),
             data,
         }
     }
     pub fn invalid_command_error(data: Option<Value>) -> Self {
-        ServError::Exception {
+        TermenuError::Exception {
             code: "E712".into(),
             name: "InvalidCommandError".into(),
             data,
         }
     }
     pub fn command_timeout_error(data: Option<Value>) -> Self {
-        ServError::Exception {
-            code: "713".into(),
+        TermenuError::Exception {
+            code: "E713".into(),
             name: "CommandTimeoutError".into(),
             data,
         }
     }
 }
 
-impl fmt::Display for ServError {
+impl fmt::Display for TermenuError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ServError::Exception { code, name, data } => {
+            TermenuError::Exception { code, name, data } => {
                 let code_colored: ColoredString = code.red().bold();
                 let name_colored: ColoredString = name.yellow().bold();
 
@@ -90,15 +113,15 @@ impl fmt::Display for ServError {
                     write!(f, "[{}] {}", code_colored, name_colored)
                 }
             }
-            ServError::Io(err) => write!(f, "{}", err.to_string().red()),
+            TermenuError::Io(err) => write!(f, "{}", err.to_string().red()),
         }
     }
 }
 
-impl Error for ServError {
+impl Error for TermenuError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            ServError::Io(e) => Some(e),
+            TermenuError::Io(e) => Some(e),
             _ => None,
         }
     }

@@ -1,19 +1,15 @@
-use crate::modules::exceptions::ServError;
-/**
- * =========================================
- * Note: This is an internal command intended
- * for development use only. You may remove it
- * depending on your specific use case or how
- * you plan to use this tool.
- * =========================================
- */
-use crate::modules::termenu::Termenu;
+use crate::modules::termenu::{Termenu, TermenuError};
 use colored::Colorize;
 use serde_json::json;
 use std::collections::HashMap;
 use std::fs;
+use std::io::Write;
 use std::path::Path;
 
+/// =========================================
+/// Note: This is an internal command intended
+/// for development use only.
+/// =========================================
 pub fn register() -> Termenu {
     let mut command: Termenu = Termenu::new_command(
         "developer",
@@ -30,37 +26,65 @@ pub fn register() -> Termenu {
                 let command_name = match command_name {
                     Some(name) if !name.is_empty() => name,
                     _ => {
-                        return Err(ServError::input_missing_error(Some(json!({
+                        return Err(TermenuError::input_missing_error(Some(json!( {
                             "issue": "Action is required. Use `--add=<command_name>` to continue."
                         }))));
                     }
                 };
 
-                if verbose_mode {
-                    println!("{} Verbose mode enabled.", "✔".green());
-                    println!("{} Adding command: {}", "ℹ".cyan(), command_name);
-                }
-
-                let file_name: String =
-                    format!("src/commands/{}_command.rs", command_name.to_lowercase());
-                let path: &Path = Path::new(&file_name);
+                let file_name = format!("src/commands/{}_command.rs", command_name.to_lowercase());
+                let path = Path::new(&file_name);
 
                 if path.exists() {
-                    return Err(ServError::input_unknown_error(Some(json!({
+                    return Err(TermenuError::input_unknown_error(Some(json!( {
                         "issue": format!("Command file already exists: {}", file_name)
                     }))));
                 }
 
+                // Create the command file
                 fs::write(&path, generate_command_template(&command_name)).map_err(|e| {
-                    ServError::connection_unknown_error(Some(json!({
+                    TermenuError::connection_unknown_error(Some(json!( {
                         "issue": format!("Failed to create file: {}", e)
                     })))
                 })?;
 
+                // Update mod.rs automatically
+                let mod_file_path = Path::new("src/commands/mod.rs");
+                let mod_line = format!("pub mod {}_command;\n", command_name.to_lowercase());
+
+                if mod_file_path.exists() {
+                    let mut content = fs::read_to_string(&mod_file_path).unwrap_or_default();
+                    if !content.contains(&mod_line) {
+                        let mut file = fs::OpenOptions::new()
+                            .append(true)
+                            .open(&mod_file_path)
+                            .map_err(|e| {
+                                TermenuError::connection_unknown_error(Some(json!( {
+                                    "issue": format!("Failed to open mod.rs: {}", e)
+                                })))
+                            })?;
+                        file.write_all(mod_line.as_bytes()).map_err(|e| {
+                            TermenuError::connection_unknown_error(Some(json!( {
+                                "issue": format!("Failed to write to mod.rs: {}", e)
+                            })))
+                        })?;
+                        if verbose_mode {
+                            println!(
+                                "{} Registered command in mod.rs: {}",
+                                "✔".green(),
+                                mod_line.trim()
+                            );
+                        }
+                    } else if verbose_mode {
+                        println!("{} Command already registered in mod.rs.", "ℹ".cyan());
+                    }
+                } else if verbose_mode {
+                    println!("{} mod.rs not found in src/commands/", "⚠".yellow());
+                }
+
                 if verbose_mode {
                     println!(
-                        "{} Command file created successfully at: {}. \
-                         Register the new command manually on the entrypoint.",
+                        "{} Command file created successfully at: {}",
                         "✔".green(),
                         file_name
                     );
@@ -68,7 +92,7 @@ pub fn register() -> Termenu {
 
                 Ok(())
             } else {
-                Err(ServError::invalid_command_error(Some(json!({
+                Err(TermenuError::framework_forbidden_error(Some(json!( {
                     "issue": "This command is only available in debug mode."
                 }))))
             }
@@ -88,7 +112,7 @@ pub fn register() -> Termenu {
 }
 
 fn generate_command_template(name: &str) -> String {
-    let _struct_name: String = format!("{}Command", capitalize_first_letter(&name.to_lowercase()));
+    let struct_name = format!("{}Command", capitalize_first_letter(&name.to_lowercase()));
     format!(
         "use crate::modules::termenu::Termenu;\n\n\
         pub fn register() -> Termenu {{\n    \
@@ -107,7 +131,7 @@ fn generate_command_template(name: &str) -> String {
 }
 
 fn capitalize_first_letter(s: &str) -> String {
-    let mut c: std::str::Chars<'_> = s.chars();
+    let mut c = s.chars();
     match c.next() {
         None => String::new(),
         Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),

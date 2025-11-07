@@ -1,4 +1,4 @@
-use crate::modules::banner::Banner;
+use crate::modules::termenu::Banner;
 use colored::Colorize;
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
@@ -7,7 +7,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use super::exceptions::ServError;
+use super::exceptions::TermenuError;
 
 /// Constants
 pub const MAX_COMMAND: i32 = 100;
@@ -20,14 +20,15 @@ pub struct Termenu {
     pub options: Vec<(String, String)>,
     #[allow(clippy::type_complexity)]
     pub handler: Option<
-        Arc<dyn Fn(&HashMap<String, Option<String>>) -> Result<(), ServError> + Send + Sync>,
+        Arc<dyn Fn(&HashMap<String, Option<String>>) -> Result<(), TermenuError> + Send + Sync>,
     >,
     #[allow(clippy::type_complexity)]
     pub async_handler: Option<
         Arc<
             dyn Fn(
                     HashMap<String, Option<String>>,
-                ) -> Pin<Box<dyn Future<Output = Result<(), ServError>> + Send>>
+                )
+                    -> Pin<Box<dyn Future<Output = Result<(), TermenuError>> + Send>>
                 + Send
                 + Sync,
         >,
@@ -38,7 +39,7 @@ impl Termenu {
     /// Create a new synchronous command with a handler
     pub fn new_command<F>(command: &str, description: &str, handler: F) -> Self
     where
-        F: Fn(&HashMap<String, Option<String>>) -> Result<(), ServError> + Send + Sync + 'static,
+        F: Fn(&HashMap<String, Option<String>>) -> Result<(), TermenuError> + Send + Sync + 'static,
     {
         Self {
             command: command.to_string(),
@@ -53,7 +54,7 @@ impl Termenu {
     pub fn new_async_command<F, Fut>(command: &str, description: &str, handler: F) -> Self
     where
         F: Fn(HashMap<String, Option<String>>) -> Fut + Send + Sync + 'static,
-        Fut: Future<Output = Result<(), ServError>> + Send + 'static,
+        Fut: Future<Output = Result<(), TermenuError>> + Send + 'static,
     {
         Self {
             command: command.to_string(),
@@ -74,7 +75,7 @@ impl Termenu {
     pub fn parse_options(
         &self,
         raw_args: &[String],
-    ) -> Result<HashMap<String, Option<String>>, ServError> {
+    ) -> Result<HashMap<String, Option<String>>, TermenuError> {
         let mut parsed: HashMap<String, Option<String>> = HashMap::new();
 
         for arg in raw_args {
@@ -82,14 +83,14 @@ impl Termenu {
                 if self.options.iter().any(|(opt, _)| opt == key) {
                     parsed.insert(key.to_string(), Some(value.to_string()));
                 } else {
-                    return Err(ServError::invalid_command_error(Some(json!({
+                    return Err(TermenuError::invalid_command_error(Some(json!({
                         "issue": format!("Unknown option: '{}'", key)
                     }))));
                 }
             } else if self.options.iter().any(|(opt, _)| opt == arg) {
                 parsed.insert(arg.clone(), None);
             } else {
-                return Err(ServError::invalid_command_error(Some(json!({
+                return Err(TermenuError::invalid_command_error(Some(json!({
                     "issue": format!("Unknown option: '{}'", arg)
                 }))));
             }
@@ -99,13 +100,16 @@ impl Termenu {
     }
 
     /// Execute either sync or async handler automatically
-    pub async fn execute(&self, options: HashMap<String, Option<String>>) -> Result<(), ServError> {
+    pub async fn execute(
+        &self,
+        options: HashMap<String, Option<String>>,
+    ) -> Result<(), TermenuError> {
         if let Some(handler) = &self.handler {
             handler(&options)
         } else if let Some(async_handler) = &self.async_handler {
             async_handler(options).await
         } else {
-            Err(ServError::invalid_command_error(Some(json!({
+            Err(TermenuError::invalid_command_error(Some(json!({
                 "issue": "No handler found for this command."
             }))))
         }
@@ -191,7 +195,7 @@ impl Termenu {
     }
 
     /// Process CLI input and execute matching command
-    pub async fn processor(mut commands: Vec<Termenu>) -> Result<(), ServError> {
+    pub async fn processor(mut commands: Vec<Termenu>) -> Result<(), TermenuError> {
         // --- Clone commands for use inside the help closure ---
         let help_commands = commands.clone();
 
@@ -233,7 +237,7 @@ impl Termenu {
                 return Err(err); // ✅ keep original error (no double wrap)
             }
         } else {
-            return Err(ServError::invalid_command_error(Some(json!({
+            return Err(TermenuError::invalid_command_error(Some(json!({
                 "issue": format!(
                     "invalid command '{}'. Run with 'help' to view available commands.",
                     command_name
